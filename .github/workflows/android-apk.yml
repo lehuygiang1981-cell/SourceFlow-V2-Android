@@ -1,4 +1,4 @@
-name: SourceFlow V2 - Android APK
+name: SourceFlow V2.2 - Android APK
 
 on:
   push:
@@ -14,11 +14,19 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Extract source code
+      - name: Extract V2.2 source code
         shell: pwsh
         run: |
           Expand-Archive -LiteralPath 'SourceFlow_V2_2_transfer.zip' -DestinationPath '.' -Force
           if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
+      - name: Fix V2.2 Dart syntax
+        shell: pwsh
+        run: |
+          $p = 'lib/models.dart'
+          $s = Get-Content -LiteralPath $p -Raw
+          $s = $s.Replace('(?:\\s|[:=-]|$)', '(?:\\s|[:=-]|\$)')
+          $s = $s.Replace('!==', '!=')
+          [System.IO.File]::WriteAllText((Resolve-Path $p).Path, $s, [System.Text.UTF8Encoding]::new($false))
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -32,7 +40,7 @@ jobs:
       - name: Test business rules
         shell: pwsh
         run: flutter test
-      - name: Configure optional ML Kit R8 rules
+      - name: Configure ML Kit R8 rules
         shell: pwsh
         run: |
           $rules = @(
@@ -57,7 +65,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SourceFlow-V2-1-Android-APK
+          name: SourceFlow-V2-2-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
