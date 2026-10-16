@@ -17,7 +17,7 @@ jobs:
       - name: Extract source code
         shell: pwsh
         run: |
-          Expand-Archive -LiteralPath 'SourceFlow_V2_transfer.zip' -DestinationPath '.' -Force
+          Expand-Archive -LiteralPath 'SourceFlow_V2_1_transfer.zip' -DestinationPath '.' -Force
           if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
       - uses: actions/setup-java@v4
         with:
@@ -57,7 +57,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SourceFlow-V2-Android-APK
+          name: SourceFlow-V2-1-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
