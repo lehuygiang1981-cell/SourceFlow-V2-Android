@@ -1,0 +1,44 @@
+name: SourceFlow V2 - Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract SourceFlow V2 source code
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath 'SourceFlow_V2_transfer.zip' -DestinationPath '.' -Force
+          if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml in archive' }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Prepare Android application
+        shell: pwsh
+        run: ./scripts/prepare_android.ps1
+      - name: Test business rules
+        shell: pwsh
+        run: flutter test
+      - name: Build installable APK
+        shell: pwsh
+        run: flutter build apk --release
+      - name: Attach APK to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceFlow-V2-Android-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
