@@ -17,7 +17,7 @@ jobs:
       - name: Extract V2.2 source code
         shell: pwsh
         run: |
-          Expand-Archive -LiteralPath 'SourceFlow_V2_2_transfer.zip' -DestinationPath '.' -Force
+          Expand-Archive -LiteralPath 'SourceFlow_V2_3_transfer.zip' -DestinationPath '.' -Force
           if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
       - name: Fix V2.2 Dart syntax
         shell: pwsh
