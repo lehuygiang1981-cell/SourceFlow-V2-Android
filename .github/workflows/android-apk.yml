@@ -17,7 +17,7 @@ jobs:
       - name: Extract source code
         shell: pwsh
         run: |
-          Expand-Archive -LiteralPath 'SourceFlow_V2_1_transfer.zip' -DestinationPath '.' -Force
+          Expand-Archive -LiteralPath 'SourceFlow_V2_2_transfer.zip' -DestinationPath '.' -Force
           if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
       - uses: actions/setup-java@v4
         with:
