@@ -36,6 +36,7 @@ jobs:
         shell: pwsh
         run: |
           Add-Content -Path 'android/gradle.properties' -Value 'kotlin.jvm.target.validation.mode=warning'
+          Add-Content -Path 'android/gradle.properties' -Value 'kotlin.incremental=false'
           flutter build apk --release
       - name: Attach APK to workflow run
         uses: actions/upload-artifact@v4
