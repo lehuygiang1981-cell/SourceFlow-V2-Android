@@ -1,0 +1,45 @@
+name: SourceFlow Web PWA - GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SourceFlow_Web_PWA_V1.zip'
+      - '.github/workflows/sourceflow-web-pwa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sourceflow-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare static PWA
+        run: |
+          mkdir -p site
+          unzip -oq SourceFlow_Web_PWA_V1.zip -d site
+          test -f site/index.html
+          test -f site/app.js
+          test -f site/sw.js
+          test -f site/manifest.webmanifest
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload web files
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./site
+      - name: Publish SourceFlow
+        id: deployment
+        uses: actions/deploy-pages@v4
