@@ -19,7 +19,7 @@ jobs:
         run: |
           Expand-Archive -LiteralPath 'SourceFlow_R3_1_Source.zip' -DestinationPath '.' -Force
           if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
-          if (-not ((Get-Content 'pubspec.yaml' -Raw) -match 'version: 3\.0\.0\+30')) { throw 'Incorrect R3.1 source version' }
+          if (-not ((Get-Content 'pubspec.yaml' -Raw) -match 'version: 3\.1\.0\+31')) { throw 'Incorrect R3.1 source version' }
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
