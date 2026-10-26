@@ -1,0 +1,51 @@
+name: SourceFlow R3.3 Results Repair 2710 - Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SourceFlow_R33_RESULTS_REPAIR_2710_Source.zip'
+      - '.github/workflows/SourceFlow_R33_RESULTS_REPAIR_2710_Build.yml'
+permissions:
+  contents: read
+jobs:
+  build-android:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract R3.3 source
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath 'SourceFlow_R33_RESULTS_REPAIR_2710_Source.zip' -DestinationPath '.' -Force
+          if (!(Test-Path 'pubspec.yaml')) { throw 'Missing pubspec.yaml' }
+          if (-not ((Get-Content 'pubspec.yaml' -Raw) -match 'version: 3\.2\.0\+32')) { throw 'Incorrect R3.3 source version' }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Prepare Android and packages
+        shell: pwsh
+        run: ./scripts/prepare_android.ps1
+      - name: Analyze Dart
+        shell: pwsh
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Flutter tests
+        shell: pwsh
+        run: flutter test
+      - name: Build release APK
+        shell: pwsh
+        run: |
+          Add-Content -Path 'android/gradle.properties' -Value 'kotlin.jvm.target.validation.mode=warning'
+          Add-Content -Path 'android/gradle.properties' -Value 'kotlin.incremental=false'
+          flutter build apk --release
+      - name: Publish APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceFlow-Personal-R3.3-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
