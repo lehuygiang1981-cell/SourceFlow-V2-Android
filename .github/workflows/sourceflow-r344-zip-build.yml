@@ -1,0 +1,48 @@
+name: SourceFlow R3.4.4 ZIP Broker Filter APK
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Verify and extract source ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'SourceFlow_R344_BrokerFilter_Source.zip'
+          if (-not (Test-Path $zip)) { throw "Missing $zip at repository root" }
+          New-Item -ItemType Directory -Force -Path 'sourceflow_build' | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath 'sourceflow_build' -Force
+          if (-not (Test-Path 'sourceflow_build/pubspec.yaml')) { throw 'ZIP root must contain pubspec.yaml' }
+          if (-not (Test-Path 'sourceflow_build/lib/hunter_search.dart')) { throw 'Missing broker filter source' }
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Prepare Android
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: ./scripts/prepare_android.ps1
+      - name: Run broker filter tests
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: flutter test test/hunter_r342_filter_test.dart
+      - name: Build APK release
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: flutter build apk --release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceFlow_R344_BrokerFilter_Release_APK
+          path: sourceflow_build/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
