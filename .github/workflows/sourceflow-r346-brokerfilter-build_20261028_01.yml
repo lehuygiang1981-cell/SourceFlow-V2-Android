@@ -1,0 +1,76 @@
+name: SourceFlow R3.4.6 ZIP Broker Filter APK
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Verify and extract source ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'SourceFlow_R346_BrokerFilter_Source_20261028_01.zip'
+          if (-not (Test-Path $zip)) { throw "Missing $zip at repository root" }
+          New-Item -ItemType Directory -Force -Path 'sourceflow_build' | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath 'sourceflow_build' -Force
+          if (-not (Test-Path 'sourceflow_build/pubspec.yaml')) { throw 'ZIP root must contain pubspec.yaml' }
+          if (-not (Test-Path 'sourceflow_build/lib/hunter_search.dart')) { throw 'Missing broker filter source' }
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Prepare Android
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: ./scripts/prepare_android.ps1
+      - name: Run broker filter tests
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: flutter test test/hunter_r342_filter_test.dart
+      - name: Stabilize Kotlin compilation
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $props = 'android/gradle.properties'
+          $existing = if (Test-Path $props) { Get-Content $props -Raw } else { '' }
+          $lines = @(
+            'kotlin.incremental=false',
+            'kotlin.compiler.execution.strategy=in-process',
+            'kotlin.caching.enabled=false',
+            'org.gradle.caching=false',
+            'org.gradle.parallel=false',
+            'org.gradle.workers.max=2'
+          )
+          foreach ($line in $lines) {
+            $key = $line.Split('=')[0]
+            $existing = [regex]::Replace($existing, '(?m)^' + [regex]::Escape($key) + '\s*=.*(?:\r?\n|$)', '')
+            $existing = $existing.TrimEnd() + "`n" + $line + "`n"
+          }
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) $props), $existing, [System.Text.UTF8Encoding]::new($false))
+          Write-Host 'Disabled Kotlin incremental caches and Gradle build cache for CI release.'
+      - name: Build APK release
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Avoid stale Kotlin compiler state after flutter create and dependency setup.
+          if (Test-Path 'build') { Remove-Item 'build' -Recurse -Force }
+          if (Test-Path 'android/.gradle') { Remove-Item 'android/.gradle' -Recurse -Force }
+          flutter build apk --release --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter release APK build failed.' }
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceFlow_R346_BrokerFilter_Release_APK
+          path: sourceflow_build/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
