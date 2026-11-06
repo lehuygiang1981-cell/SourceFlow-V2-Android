@@ -1,0 +1,115 @@
+name: SourceFlow R3.6.2 Broker House Number APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'SourceFlow_R362_GUI_LAI.zip'
+      - '.github/workflows/sourceflow-r362-gui-lai.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Extract checked source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'SourceFlow_R362_GUI_LAI.zip'
+          if (-not (Test-Path $zip)) { throw "Missing source $zip" }
+          New-Item -Type Directory -Force -Path sourceflow_build | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath sourceflow_build -Force
+          if (-not (Test-Path sourceflow_build/pubspec.yaml)) { throw 'Missing pubspec.yaml in ZIP root' }
+          if (-not (Test-Path sourceflow_build/test/hunter_r352_scan_bounds_test.dart)) { throw 'Missing R3.5.2 scan bounds test' }
+          if (-not ((Get-Content sourceflow_build/pubspec.yaml -Raw) -match 'version:\s*3\.6\.2\+70')) { throw 'Unexpected version' }
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.8'
+          cache: true
+      - name: Prepare Android and packages
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: ./scripts/prepare_android.ps1
+      - name: Run regression tests
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          flutter test test/hunter_r28_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R2.8 acceptance regression failed' }
+          flutter test test/hunter_r362_broker_address_gate_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.6.2 broker/address qualification regression failed' }
+          flutter test test/hunter_r361_broker_owner_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.6.1 broker/identity regression failed' }
+          flutter test test/hunter_r360_regressions_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.6.0 owner/manual verification & Nha Tot regression failed' }
+          flutter test test/hunter_r359_core_pipeline_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.9 end-to-end seller/broker/OCR regression failed' }
+          flutter test test/hunter_r358_address_extraction_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.8 OCR address extraction regression failed' }
+          flutter test test/workflow_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Existing V2 workflow/OCR regression failed' }
+          flutter test test/ocr_upgrade_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Existing OCR hint regression failed' }
+          flutter test test/hunter_r357_broker_promotion_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.7 broker/promotion regression failed' }
+          flutter test test/hunter_r356_identity_groups_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.6 OCR/identity regression failed' }
+          flutter test test/hunter_r355_listing_count_broker_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.5 list-count/broker regression failed' }
+          flutter test test/hunter_r354_pending_review_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.4 pending review regression failed' }
+          flutter test test/hunter_r353_quality_gate_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.4 quality-gate regression failed' }
+          flutter test test/hunter_r353_regressions_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'R3.5.4 broker/extraction regression failed' }
+          flutter test test/hunter_r352_scan_bounds_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Scan timeout/cancellation regression failed' }
+          flutter test test/hunter_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Hunter smoke test failed' }
+          flutter test test/hunter_r342_filter_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Broker filter tests failed' }
+          flutter test test/hunter_r349_broker_content_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Broker content tests failed' }
+          flutter test test/hunter_r350_pipeline_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Extraction pipeline tests failed' }
+          flutter test test/hunter_r351_detail_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Seller-detail tests failed' }
+          flutter test test/hunter_r347_gate_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Gate tests failed' }
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/hunter_page.dart lib/hunter_search.dart lib/hunter_models.dart lib/main.dart lib/models.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter static analyzer found source errors' }
+      - name: Stabilize Kotlin release compilation
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $props='android/gradle.properties'
+          $existing=if(Test-Path $props){Get-Content $props -Raw}else{''}
+          foreach($entry in @('kotlin.incremental=false','kotlin.compiler.execution.strategy=in-process','kotlin.caching.enabled=false','org.gradle.caching=false','org.gradle.parallel=false','org.gradle.workers.max=2')){
+            $key=$entry.Split('=')[0]
+            $existing=[regex]::Replace($existing,'(?m)^'+[regex]::Escape($key)+'\s*=.*(?:\r?\n|$)','')
+            $existing=$existing.TrimEnd()+"`n"+$entry+"`n"
+          }
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) $props),$existing,[System.Text.UTF8Encoding]::new($false))
+      - name: Build Android APK
+        shell: pwsh
+        working-directory: sourceflow_build
+        run: |
+          $ErrorActionPreference='Stop'
+          if(Test-Path build){Remove-Item build -Recurse -Force}
+          if(Test-Path android/.gradle){Remove-Item android/.gradle -Recurse -Force}
+          flutter build apk --release --no-pub
+          if($LASTEXITCODE -ne 0){throw 'APK build failed'}
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SourceFlow_R362_APK
+          path: sourceflow_build/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
